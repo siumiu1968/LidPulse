@@ -1,0 +1,7 @@
+version = 1
+name = "LidPulse"
+
+[[actions]]
+name = "Run"
+icon = "run"
+command = "./script/build_and_run.sh"
