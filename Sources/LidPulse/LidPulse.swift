@@ -14,7 +14,7 @@ enum LidPulseApp {
 @MainActor
 final class LidDelegate: NSObject, NSApplicationDelegate {
     let model = LidModel()
-    private var displayObservers: [NSObjectProtocol] = []
+    private var sleepObservers: [NSObjectProtocol] = []
     private var lockObservers: [NSObjectProtocol] = []
     private var signals: [DispatchSourceSignal] = []
     private var statusItem: NSStatusItem?
@@ -42,18 +42,21 @@ final class LidDelegate: NSObject, NSApplicationDelegate {
             signals.append(source)
         }
         let center = NSWorkspace.shared.notificationCenter
-        for (name, sleeping) in [
-            (NSWorkspace.screensDidSleepNotification, true), (NSWorkspace.screensDidWakeNotification, false),
-            (NSWorkspace.willSleepNotification, true), (NSWorkspace.didWakeNotification, false)
-        ] {
-            displayObservers.append(center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
-                MainActor.assumeIsolated { self?.model.suspend(display: true, sleeping) }
+        let sleepEvents: [(Notification.Name, LidModel.SuspensionSource, Bool)] = [
+            (NSWorkspace.screensDidSleepNotification, .display, true),
+            (NSWorkspace.screensDidWakeNotification, .display, false),
+            (NSWorkspace.willSleepNotification, .system, true),
+            (NSWorkspace.didWakeNotification, .system, false)
+        ]
+        for (name, source, sleeping) in sleepEvents {
+            sleepObservers.append(center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.model.suspend(source, sleeping) }
             })
         }
         let distributed = DistributedNotificationCenter.default()
         for (name, locked) in [("com.apple.screenIsLocked", true), ("com.apple.screenIsUnlocked", false)] {
             lockObservers.append(distributed.addObserver(forName: .init(name), object: nil, queue: .main) { [weak self] _ in
-                MainActor.assumeIsolated { self?.model.suspend(display: false, locked) }
+                MainActor.assumeIsolated { self?.model.suspend(.lock, locked) }
             })
         }
         model.launch()
@@ -65,7 +68,9 @@ final class LidDelegate: NSObject, NSApplicationDelegate {
 
     private func showPanel() {
         guard let button = statusItem?.button, button.window != nil else { return }
+        NSApp.activate()
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        popover.contentViewController?.view.window?.makeKey()
     }
 
     private func openSettings() {
@@ -92,6 +97,10 @@ final class LidDelegate: NSObject, NSApplicationDelegate {
         return false
     }
 
+    func applicationDidChangeScreenParameters(_ notification: Notification) {
+        model.displayConfigurationChanged()
+    }
+
     func application(_ application: NSApplication, open urls: [URL]) {
         for url in urls {
             if let event = AgentEvent(url: url) { model.receive(event) }
@@ -100,7 +109,7 @@ final class LidDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         model.terminate()
-        displayObservers.forEach(NSWorkspace.shared.notificationCenter.removeObserver)
+        sleepObservers.forEach(NSWorkspace.shared.notificationCenter.removeObserver)
         lockObservers.forEach(DistributedNotificationCenter.default().removeObserver)
     }
 }

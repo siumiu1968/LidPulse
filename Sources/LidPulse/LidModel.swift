@@ -31,6 +31,8 @@ enum LidMode: String, CaseIterable, Identifiable {
 
 @MainActor @Observable
 final class LidModel {
+    enum SuspensionSource { case display, system, lock }
+
     private(set) var mode: LidMode = .system
     private(set) var output = 0.0
     private var notice: LocalizedNotice?
@@ -39,6 +41,7 @@ final class LidModel {
     private(set) var fullRange = false
     private(set) var ownsBrightnessOverride = false
     private(set) var changingLimit = false
+    private(set) var keepLogoWhenScreenOff = false
     var language: Language = .cantonese {
         didSet { defaults.set(language.rawValue, forKey: "language") }
     }
@@ -66,7 +69,8 @@ final class LidModel {
     @ObservationIgnored private var timer: Timer?
     @ObservationIgnored private var started = 0.0
     @ObservationIgnored private var audioRetry = false
-    @ObservationIgnored private var asleep = false
+    @ObservationIgnored private var displayAsleep = false
+    @ObservationIgnored private var systemAsleep = false
     @ObservationIgnored private var locked = false
     @ObservationIgnored private var sessions: [String: Session] = [:]
     @ObservationIgnored private let log = Logger(subsystem: "local.lidpulse", category: "controller")
@@ -105,6 +109,9 @@ final class LidModel {
 
     private var time: Double { ProcessInfo.processInfo.systemUptime }
     private var competingApp: Bool { driver?.hasOtherOverride == true }
+    private var suspended: Bool {
+        systemAsleep || (!keepLogoWhenScreenOff && (displayAsleep || locked))
+    }
 
     init(recovery: URL? = nil) {
         let data = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
@@ -116,6 +123,7 @@ final class LidModel {
         if defaults.object(forKey: "breathePeriod") != nil { breathePeriod = min(9, max(2, defaults.double(forKey: "breathePeriod"))) }
         if defaults.object(forKey: "musicSensitivity") != nil { musicSensitivity = min(1, max(0, defaults.double(forKey: "musicSensitivity"))) }
         darkBetweenBeats = defaults.bool(forKey: "darkBetweenBeats")
+        keepLogoWhenScreenOff = defaults.bool(forKey: "keepLogoWhenScreenOff")
         for agent in Agent.allCases {
             folders[agent] = defaults.string(forKey: agent.rawValue + "Folder").map { URL(fileURLWithPath: $0) } ?? agent.folder
         }
@@ -155,7 +163,7 @@ final class LidModel {
             if !competingApp, driver?.restore() == false { notice = .init("未能還原 Logo 設定。請重新開關 LidPulse 再試。", "Could not restore the logo settings. Toggle LidPulse and try again.") }
             return
         }
-        if !asleep && !locked && newMode == .music && !startAudio() { return }
+        if !suspended && newMode == .music && !startAudio() { return }
         let tickTimer = Timer(timeInterval: 0.05, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.tick() }
         }
@@ -177,8 +185,8 @@ final class LidModel {
         }
     }
 
-    private func tick() {
-        guard mode != .system, !asleep, !locked, let driver else { return }
+    private func tick(force: Bool = false) {
+        guard mode != .system, !suspended, let driver else { return }
         let now = time
         let elapsed = now - started
         let level: Double
@@ -222,7 +230,7 @@ final class LidModel {
         let drive = brightness * level
         // Map the slider to the LED’s available range with finer control near darkness.
         let nits = 1000 * pow(drive, 2)
-        guard driver.apply(nits: nits) else {
+        guard driver.apply(nits: nits, force: force) else {
             timer?.invalidate(); timer = nil
             audio.stop()
             _ = driver.restore()
@@ -364,16 +372,41 @@ final class LidModel {
         }
     }
 
-    func suspend(display: Bool, _ suspended: Bool) {
-        if display { asleep = suspended } else { locked = suspended }
-        if asleep || locked {
-            audio.stop()
-            _ = driver?.restore()
-        } else {
-            started = time
-            if mode == .music { _ = startAudio() }
-            tick()
+    func setKeepLogoWhenScreenOff(_ enabled: Bool) {
+        let wasSuspended = suspended
+        keepLogoWhenScreenOff = enabled
+        defaults.set(enabled, forKey: "keepLogoWhenScreenOff")
+        updateSuspension(wasSuspended: wasSuspended)
+    }
+
+    func suspend(_ source: SuspensionSource, _ sleeping: Bool) {
+        let wasSuspended = suspended
+        switch source {
+        case .display: displayAsleep = sleeping
+        case .system: systemAsleep = sleeping
+        case .lock: locked = sleeping
         }
+        // A display power transition can reset the hardware's current level.
+        updateSuspension(wasSuspended: wasSuspended, reapply: source == .display)
+    }
+
+    func displayConfigurationChanged() {
+        if keepLogoWhenScreenOff { tick(force: true) }
+    }
+
+    private func updateSuspension(wasSuspended: Bool, reapply: Bool = false) {
+        if suspended {
+            if !wasSuspended {
+                audio.stop()
+                _ = driver?.restore()
+            }
+            return
+        }
+        if wasSuspended {
+            started = time
+            if mode == .music && !startAudio() { return }
+        }
+        if wasSuspended || reapply { tick(force: reapply) }
     }
 
     func terminate() {

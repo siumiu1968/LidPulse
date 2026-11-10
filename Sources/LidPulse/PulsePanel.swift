@@ -80,8 +80,8 @@ struct PulsePanel: View {
         VStack(spacing: 7) {
             HStack(spacing: 8) {
                 Image(systemName: "sun.min").accessibilityHidden(true)
-                Slider(value: $model.brightness, in: 0.01...1) { Text(language.text("Logo 亮度", "Logo brightness")) }
-                    .labelsHidden()
+                NativeSlider(value: $model.brightness, range: 0.01...1,
+                             label: language.text("Logo 亮度", "Logo brightness"))
                 Image(systemName: "sun.max").accessibilityHidden(true)
                 Text(model.brightness, format: .percent.precision(.fractionLength(0)))
                     .monospacedDigit()
@@ -89,16 +89,22 @@ struct PulsePanel: View {
             }
             .disabled(!model.supported || model.mode == .dark)
             if model.mode == .breathe {
-                Slider(value: $model.breathePeriod, in: 2...9, step: 0.5) {
-                    Text(language.text("呼吸週期", "Breathing period"))
-                } minimumValueLabel: { Text(language.text("快", "Fast")) }
-                  maximumValueLabel: { Text(language.text("慢", "Slow")) }
+                HStack(spacing: 8) {
+                    let label = language.text("呼吸週期", "Breathing period")
+                    Text(label)
+                    Text(language.text("快", "Fast"))
+                    NativeSlider(value: $model.breathePeriod, range: 2...9, label: label)
+                    Text(language.text("慢", "Slow"))
+                }
             }
             if model.mode == .music {
-                Slider(value: $model.musicSensitivity) {
-                    Text(language.text("節拍強度", "Beat intensity"))
-                } minimumValueLabel: { Text(language.text("弱", "Soft")) }
-                  maximumValueLabel: { Text(language.text("強", "Strong")) }
+                HStack(spacing: 8) {
+                    let label = language.text("節拍強度", "Beat intensity")
+                    Text(label)
+                    Text(language.text("弱", "Soft"))
+                    NativeSlider(value: $model.musicSensitivity, range: 0...1, label: label)
+                    Text(language.text("強", "Strong"))
+                }
                 Toggle(language.text("節拍之間熄燈", "Dark between beats"), isOn: $model.darkBetweenBeats)
                     .toggleStyle(.checkbox)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -118,6 +124,21 @@ struct PulsePanel: View {
                 model.select(model.mode == .dark ? .system : .dark)
             }
             .disabled(!model.supported || model.changingLimit)
+            HStack {
+                let label = language.text("熄屏或合蓋時保持 Logo 發光", "Keep Lit With Screen Off or Lid Closed")
+                Text(label).accessibilityHidden(true)
+                Spacer(minLength: 8)
+                Toggle(label, isOn: Binding(
+                    get: { model.keepLogoWhenScreenOff },
+                    set: { model.setKeepLogoWhenScreenOff($0) }
+                ))
+                .toggleStyle(.switch)
+                .controlSize(.small)
+                .labelsHidden()
+            }
+            .disabled(!model.supported)
+            .help(language.text("Mac 仲醒住時會保留目前燈效。Mac 進入睡眠時，Logo 會熄燈。",
+                                "Keeps the current light effect while your Mac stays awake. The logo turns off when your Mac sleeps."))
             Button(language.text("設定…", "Settings…"), action: openSettings)
                 .keyboardShortcut(",", modifiers: .command)
             Button(language.text("退出 LidPulse", "Quit LidPulse")) { NSApp.terminate(nil) }

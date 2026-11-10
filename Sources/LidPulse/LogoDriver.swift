@@ -69,10 +69,10 @@ final class LogoDriver {
 
     private var recoveryExists: Bool { FileManager.default.fileExists(atPath: recovery.path) }
 
-    func apply(nits: Double) -> Bool {
+    func apply(nits: Double, force: Bool = false) -> Bool {
         guard nits.isFinite else { return false }
         let value = min(1000, max(0, nits))
-        if let last, abs(value - last) < 0.45, value != 0 || last == 0 { return true }
+        if !force, let last, abs(value - last) < 0.45, value != 0 || last == 0 { return true }
 
         if original == nil {
             if recoveryExists, !restore() { return false }

@@ -15,6 +15,8 @@
 
 Turn LidPulse off to return brightness control to macOS, or use **Turn Logo Off** to keep the lid light dark while LidPulse is running. A live preview and brightness slider are available in the menu bar. The separate Settings window includes English and Traditional Chinese, Open at Login, and individual agent connections.
 
+Use **Keep Lit With Screen Off or Lid Closed** directly from the menu bar panel to keep the current effect while your Mac stays awake. The light turns off when the Mac enters system sleep.
+
 ## Compatibility and installation
 
 - Requires an Apple silicon Mac with a supported, physically illuminated lid logo. A Mac without the light cannot gain one through software.
@@ -45,5 +47,6 @@ The second command builds the DMG in `outputs/` without quitting a running copy 
 
 - **下載：** 喺 [GitHub Releases](https://github.com/siumiu1968/LidPulse/releases/latest) 下載 DMG，將 LidPulse 拖入「應用程式」。App 開啟後會出現喺選單列。此版本未經 Apple 公證，macOS 首次開啟下載版時可能會阻擋。
 - **支援機型：** 需要有實體發光 Logo 嘅 Apple silicon Mac；已喺 PROLED XDR MacBook Pro（`Mac17,10`、macOS 27.2）實測。
+- **熄屏時保留燈效：** 喺主選單開啟「熄屏或合蓋時保持 Logo 發光」。只要 Mac 仲醒住，LidPulse 就會繼續套用目前燈效。Mac 進入睡眠時，Logo 會熄燈。
 - **最高亮度：** 如果部機仍有限制，按「解除最高亮度限制…」後由 macOS 要求管理員授權。之後可以還原之前嘅限制；平時開 App 唔會問密碼。
 - **音樂及 AI 狀態：** 音樂模式需系統音訊權限，音訊只喺本機分析。喺設定可以分開連接 Codex 同 Claude Code；Codex 需審閱同信任 hooks 先會觸發。
