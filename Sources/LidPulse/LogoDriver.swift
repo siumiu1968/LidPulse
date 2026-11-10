@@ -6,12 +6,18 @@ import Darwin
 final class LogoDriver {
     private static let mappingKey = "LEPWMBrightnessNitsMapping"
     private static let mappingMax = Double(Float.greatestFiniteMagnitude)
+    private static let factorFadeKey = "LEPWMFactorFadeDuration"
     private let client: NSObject
     private let copy = NSSelectorFromString("copyPropertyForKey:")
     private let set = NSSelectorFromString("setProperty:forKey:")
     private let recovery: URL
     private var original: [[Double]]?
     private var last: Double?
+    private lazy var closedLid = ClosedLidLogo()
+    private var attemptedOpeningFade = false
+    private var ownsOpeningFade = false
+    private var openingFadeReset: DispatchWorkItem?
+    private var openingFadeRecovery: URL { recovery.appendingPathExtension("opening-fade") }
 
     private typealias Setter = @convention(c) (AnyObject, Selector, AnyObject, NSString) -> Bool
 
@@ -39,6 +45,59 @@ final class LogoDriver {
         guard let mapping = client.perform(copy, with: key)?.takeRetainedValue() as? [[Double]],
               Self.valid(mapping) else { return false }
         return mapping.allSatisfy { $0[1] >= 999 }
+    }
+
+    var supportsClosedLid: Bool { closedLid != nil }
+    var isLidClosed: Bool { closedLid?.isClosed == true }
+    var needsClosedLidHandoff: Bool { closedLid?.needsHandoff == true }
+
+    func applyWithLidClosed(nits: Double) -> Bool {
+        guard nits.isFinite, let closedLid else { return false }
+        let applied = closedLid.apply(nits: nits) {
+            client.perform(copy, with: "LEPWMState")?.takeRetainedValue() as? [String: Double]
+        }
+        if applied, closedLid.isDrivingLight { prepareOpeningFade() }
+        return applied
+    }
+
+    func releaseClosedLid() {
+        if closedLid?.release() == true { last = nil }
+        attemptedOpeningFade = false
+        guard ownsOpeningFade else { return }
+        if closedLid?.isClosed == true {
+            restoreOpeningFade()
+        } else if openingFadeReset == nil {
+            // The lid notification can arrive before CoreBrightness starts its ramp.
+            let reset = DispatchWorkItem { [weak self] in self?.restoreOpeningFade() }
+            openingFadeReset = reset
+            DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(500), execute: reset)
+        }
+    }
+
+    private func prepareOpeningFade() {
+        openingFadeReset?.cancel()
+        openingFadeReset = nil
+        guard !ownsOpeningFade, !attemptedOpeningFade else { return }
+        attemptedOpeningFade = true
+        let current = client.perform(copy, with: Self.factorFadeKey)?.takeRetainedValue() as? NSNumber
+        guard (current?.doubleValue ?? 0) == 0 else { return }
+        do {
+            try FileManager.default.createDirectory(at: recovery.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try Data().write(to: openingFadeRecovery, options: .atomic)
+        } catch { return }
+        // Zero selects the system default. A positive duration shorter than the first
+        // sample makes the native ramp start directly at the requested brightness.
+        ownsOpeningFade = write(0.000_000_001 as NSNumber, key: Self.factorFadeKey)
+        if !ownsOpeningFade { try? FileManager.default.removeItem(at: openingFadeRecovery) }
+    }
+
+    func restoreOpeningFade() {
+        openingFadeReset?.cancel()
+        openingFadeReset = nil
+        guard ownsOpeningFade || FileManager.default.fileExists(atPath: openingFadeRecovery.path),
+              write(0 as NSNumber, key: Self.factorFadeKey) else { return }
+        ownsOpeningFade = false
+        try? FileManager.default.removeItem(at: openingFadeRecovery)
     }
 
     // A flat two-point curve indicates a manual logo override. Do not
@@ -71,6 +130,7 @@ final class LogoDriver {
 
     func apply(nits: Double, force: Bool = false) -> Bool {
         guard nits.isFinite else { return false }
+        releaseClosedLid()
         let value = min(1000, max(0, nits))
         if !force, let last, abs(value - last) < 0.45, value != 0 || last == 0 { return true }
 
@@ -91,6 +151,8 @@ final class LogoDriver {
 
     @discardableResult
     func restore() -> Bool {
+        if !ownsOpeningFade { restoreOpeningFade() }
+        releaseClosedLid()
         guard original != nil || recoveryExists else { return true }
         let saved = original ?? (try? PropertyListDecoder().decode([[Double]].self, from: Data(contentsOf: recovery)))
         guard let saved, Self.valid(saved),

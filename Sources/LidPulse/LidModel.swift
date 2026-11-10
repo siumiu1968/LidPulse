@@ -41,11 +41,18 @@ final class LidModel {
     private(set) var fullRange = false
     private(set) var ownsBrightnessOverride = false
     private(set) var changingLimit = false
-    private(set) var keepLogoWhenScreenOff = false
+    private(set) var keepLogoWhenLidClosed = false
+    private var closedLidFailed = false
     var language: Language = .cantonese {
         didSet { defaults.set(language.rawValue, forKey: "language") }
     }
-    var message: String? { notice?.text(language) }
+    var message: String? {
+        if let notice { return notice.text(language) }
+        if closedLidFailed {
+            return language.text("未能喺合蓋時控制 Logo 燈。", "Could not control the logo light with the lid closed.")
+        }
+        return nil
+    }
     var agentStatus: String {
         guard let focus else { return language.text("等緊 Claude Code 或 Codex", "Waiting for Claude Code or Codex") }
         return statusText(focus.agent, focus.phase)
@@ -67,11 +74,13 @@ final class LidModel {
     private var driver: LogoDriver?
     @ObservationIgnored private let recoveryURL: URL
     @ObservationIgnored private var timer: Timer?
+    @ObservationIgnored private var lidHandoff: Task<Void, Never>?
     @ObservationIgnored private var started = 0.0
     @ObservationIgnored private var audioRetry = false
     @ObservationIgnored private var displayAsleep = false
     @ObservationIgnored private var systemAsleep = false
     @ObservationIgnored private var locked = false
+    @ObservationIgnored private var lidClosed = false
     @ObservationIgnored private var sessions: [String: Session] = [:]
     @ObservationIgnored private let log = Logger(subsystem: "local.lidpulse", category: "controller")
 
@@ -82,6 +91,7 @@ final class LidModel {
     }
 
     var supported: Bool { driver != nil }
+    var supportsClosedLid: Bool { driver?.supportsClosedLid == true }
     var canChangeLimit: Bool { supported && !changingLimit && (!fullRange || ownsBrightnessOverride) }
 
     private func statusText(_ agent: Agent, _ phase: AgentPhase) -> String {
@@ -110,7 +120,7 @@ final class LidModel {
     private var time: Double { ProcessInfo.processInfo.systemUptime }
     private var competingApp: Bool { driver?.hasOtherOverride == true }
     private var suspended: Bool {
-        systemAsleep || (!keepLogoWhenScreenOff && (displayAsleep || locked))
+        systemAsleep || (!lidClosed && (displayAsleep || locked))
     }
 
     init(recovery: URL? = nil) {
@@ -123,7 +133,7 @@ final class LidModel {
         if defaults.object(forKey: "breathePeriod") != nil { breathePeriod = min(9, max(2, defaults.double(forKey: "breathePeriod"))) }
         if defaults.object(forKey: "musicSensitivity") != nil { musicSensitivity = min(1, max(0, defaults.double(forKey: "musicSensitivity"))) }
         darkBetweenBeats = defaults.bool(forKey: "darkBetweenBeats")
-        keepLogoWhenScreenOff = defaults.bool(forKey: "keepLogoWhenScreenOff")
+        keepLogoWhenLidClosed = defaults.bool(forKey: "keepLogoWhenLidClosed")
         for agent in Agent.allCases {
             folders[agent] = defaults.string(forKey: agent.rawValue + "Folder").map { URL(fileURLWithPath: $0) } ?? agent.folder
         }
@@ -154,12 +164,14 @@ final class LidModel {
         timer?.invalidate()
         timer = nil
         mode = newMode
+        refreshLidState()
         defaults.set(newMode.rawValue, forKey: "mode")
         if newMode != .dark && newMode != .system { defaults.set(newMode.rawValue, forKey: "lastEffect") }
         started = time
         audioRetry = false
         if newMode == .system {
             output = 0
+            driver?.releaseClosedLid()
             if !competingApp, driver?.restore() == false { notice = .init("未能還原 Logo 設定。請重新開關 LidPulse 再試。", "Could not restore the logo settings. Toggle LidPulse and try again.") }
             return
         }
@@ -186,7 +198,10 @@ final class LidModel {
     }
 
     private func tick(force: Bool = false) {
-        guard mode != .system, !suspended, let driver else { return }
+        guard mode != .system, let driver else { return }
+        let wasSuspended = suspended
+        refreshLidState()
+        guard updateSuspension(wasSuspended: wasSuspended) else { return }
         let now = time
         let elapsed = now - started
         let level: Double
@@ -230,7 +245,11 @@ final class LidModel {
         let drive = brightness * level
         // Map the slider to the LED’s available range with finer control near darkness.
         let nits = 1000 * pow(drive, 2)
-        guard driver.apply(nits: nits, force: force) else {
+        if lidClosed {
+            let failed = !driver.applyWithLidClosed(nits: nits)
+            if closedLidFailed != failed { closedLidFailed = failed }
+            if failed { return }
+        } else if !driver.apply(nits: nits, force: force) {
             timer?.invalidate(); timer = nil
             audio.stop()
             _ = driver.restore()
@@ -372,46 +391,81 @@ final class LidModel {
         }
     }
 
-    func setKeepLogoWhenScreenOff(_ enabled: Bool) {
+    func setKeepLogoWhenLidClosed(_ enabled: Bool) {
         let wasSuspended = suspended
-        keepLogoWhenScreenOff = enabled
-        defaults.set(enabled, forKey: "keepLogoWhenScreenOff")
-        updateSuspension(wasSuspended: wasSuspended)
+        keepLogoWhenLidClosed = enabled
+        defaults.set(enabled, forKey: "keepLogoWhenLidClosed")
+        if !enabled { driver?.releaseClosedLid() }
+        refreshLidState()
+        if updateSuspension(wasSuspended: wasSuspended) { tick(force: true) }
     }
 
     func suspend(_ source: SuspensionSource, _ sleeping: Bool) {
         let wasSuspended = suspended
         switch source {
         case .display: displayAsleep = sleeping
-        case .system: systemAsleep = sleeping
+        case .system:
+            systemAsleep = sleeping
+            if sleeping { driver?.restoreOpeningFade() }
         case .lock: locked = sleeping
         }
+        refreshLidState()
         // A display power transition can reset the hardware's current level.
-        updateSuspension(wasSuspended: wasSuspended, reapply: source == .display)
+        if updateSuspension(wasSuspended: wasSuspended), wasSuspended || source == .display {
+            tick(force: source == .display)
+        }
     }
 
     func displayConfigurationChanged() {
-        if keepLogoWhenScreenOff { tick(force: true) }
+        if keepLogoWhenLidClosed { tick(force: true) }
     }
 
-    private func updateSuspension(wasSuspended: Bool, reapply: Bool = false) {
+    func lidConfigurationChanged() {
+        lidHandoff?.cancel()
+        lidHandoff = nil
+        guard keepLogoWhenLidClosed, mode != .system else { return }
+        tick()
+        guard lidClosed, !suspended, mode != .dark else { return }
+
+        // Check more frequently only while the native close transition can blank the LED.
+        lidHandoff = Task { [weak self] in
+            let clock = ContinuousClock()
+            let deadline = clock.now + .milliseconds(60)
+            while clock.now < deadline {
+                do { try await clock.sleep(for: .milliseconds(2), tolerance: .zero) }
+                catch { return }
+                guard let self, self.keepLogoWhenLidClosed, self.lidClosed, !self.suspended else { return }
+                if self.driver?.needsClosedLidHandoff == true { self.tick() }
+            }
+        }
+    }
+
+    private func refreshLidState() {
+        lidClosed = keepLogoWhenLidClosed && driver?.isLidClosed == true
+        if !lidClosed, closedLidFailed { closedLidFailed = false }
+    }
+
+    private func updateSuspension(wasSuspended: Bool) -> Bool {
         if suspended {
             if !wasSuspended {
                 audio.stop()
                 _ = driver?.restore()
             }
-            return
+            return false
         }
         if wasSuspended {
-            started = time
-            if mode == .music && !startAudio() { return }
+            if !lidClosed { started = time }
+            if mode == .music && !startAudio() { return false }
         }
-        if wasSuspended || reapply { tick(force: reapply) }
+        return true
     }
 
     func terminate() {
         timer?.invalidate()
+        lidHandoff?.cancel()
         audio.stop()
+        driver?.releaseClosedLid()
+        driver?.restoreOpeningFade()
         if !competingApp { _ = driver?.restore() }
     }
 }

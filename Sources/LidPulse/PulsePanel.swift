@@ -120,25 +120,16 @@ struct PulsePanel: View {
 
     private var actions: some View {
         VStack(alignment: .leading, spacing: 9) {
-            Button(model.mode == .dark ? language.text("恢復 Logo 燈", "Restore Logo Light") : language.text("熄 Logo 燈", "Turn Logo Off")) {
-                model.select(model.mode == .dark ? .system : .dark)
-            }
+            actionSwitch(language.text("Logo 燈", "Logo Light"),
+                         isOn: Binding(get: { model.mode != .dark },
+                                       set: { model.select($0 ? .system : .dark) }))
             .disabled(!model.supported || model.changingLimit)
-            HStack {
-                let label = language.text("熄屏或合蓋時保持 Logo 發光", "Keep Lit With Screen Off or Lid Closed")
-                Text(label).accessibilityHidden(true)
-                Spacer(minLength: 8)
-                Toggle(label, isOn: Binding(
-                    get: { model.keepLogoWhenScreenOff },
-                    set: { model.setKeepLogoWhenScreenOff($0) }
-                ))
-                .toggleStyle(.switch)
-                .controlSize(.small)
-                .labelsHidden()
+            if model.supportsClosedLid {
+                actionSwitch(language.text("合蓋時保持 Logo 發光", "Keep Logo Lit With Lid Closed"),
+                             isOn: Binding(get: { model.keepLogoWhenLidClosed }, set: model.setKeepLogoWhenLidClosed))
+                .help(language.text("Mac 仲醒住時，合蓋後沿用目前模式同亮度。關閉開關後，合蓋會熄燈。",
+                                    "Continues the selected mode and brightness with the lid closed while your Mac is awake. Turn this off to let the logo go dark on closing."))
             }
-            .disabled(!model.supported)
-            .help(language.text("Mac 仲醒住時會保留目前燈效。Mac 進入睡眠時，Logo 會熄燈。",
-                                "Keeps the current light effect while your Mac stays awake. The logo turns off when your Mac sleeps."))
             Button(language.text("設定…", "Settings…"), action: openSettings)
                 .keyboardShortcut(",", modifiers: .command)
             Button(language.text("退出 LidPulse", "Quit LidPulse")) { NSApp.terminate(nil) }
@@ -146,6 +137,17 @@ struct PulsePanel: View {
         }
         .buttonStyle(.borderless)
         .font(.system(size: 13))
+    }
+
+    private func actionSwitch(_ label: String, isOn: Binding<Bool>) -> some View {
+        HStack {
+            Text(label).accessibilityHidden(true)
+            Spacer(minLength: 8)
+            Toggle(label, isOn: isOn)
+                .toggleStyle(.switch)
+                .controlSize(.small)
+                .labelsHidden()
+        }
     }
 }
 

@@ -1,4 +1,5 @@
 import AppKit
+import IOKit
 import SwiftUI
 
 @main
@@ -13,10 +14,14 @@ enum LidPulseApp {
 
 @MainActor
 final class LidDelegate: NSObject, NSApplicationDelegate {
+    // kIOPMMessageClamshellStateChange is a C macro unavailable in Swift.
+    private static let clamshellStateChange: natural_t = 0xe0034100
     let model = LidModel()
     private var sleepObservers: [NSObjectProtocol] = []
     private var lockObservers: [NSObjectProtocol] = []
     private var signals: [DispatchSourceSignal] = []
+    private var lidNotifications: IONotificationPortRef?
+    private var lidInterest: io_object_t = 0
     private var statusItem: NSStatusItem?
     private let popover = NSPopover()
     private var settingsWindow: NSWindow?
@@ -59,7 +64,27 @@ final class LidDelegate: NSObject, NSApplicationDelegate {
                 MainActor.assumeIsolated { self?.model.suspend(.lock, locked) }
             })
         }
+        observeLid()
         model.launch()
+    }
+
+    private func observeLid() {
+        let power = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("IOPMrootDomain"))
+        guard power != 0 else { return }
+        defer { IOObjectRelease(power) }
+        guard let port = IONotificationPortCreate(kIOMainPortDefault) else { return }
+        let result = IOServiceAddInterestNotification(port, power, kIOGeneralInterest, { context, _, message, _ in
+            guard message == LidDelegate.clamshellStateChange, let context else { return }
+            MainActor.assumeIsolated {
+                Unmanaged<LidDelegate>.fromOpaque(context).takeUnretainedValue().model.lidConfigurationChanged()
+            }
+        }, Unmanaged.passUnretained(self).toOpaque(), &lidInterest)
+        guard result == KERN_SUCCESS else {
+            IONotificationPortDestroy(port)
+            return
+        }
+        lidNotifications = port
+        IONotificationPortSetDispatchQueue(port, .main)
     }
 
     @objc private func togglePanel() {
@@ -108,6 +133,8 @@ final class LidDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        if lidInterest != 0 { IOObjectRelease(lidInterest) }
+        if let lidNotifications { IONotificationPortDestroy(lidNotifications) }
         model.terminate()
         sleepObservers.forEach(NSWorkspace.shared.notificationCenter.removeObserver)
         lockObservers.forEach(DistributedNotificationCenter.default().removeObserver)
