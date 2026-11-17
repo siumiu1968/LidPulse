@@ -14,6 +14,7 @@ final class LogoDriver {
     private var original: [[Double]]?
     private var last: Double?
     private lazy var closedLid = ClosedLidLogo(client: client)
+    private lazy var staticLogo = ClosedLidStaticLogo()
     private var attemptedOpeningFade = false
     private var ownsOpeningFade = false
     private var openingFadeReset: DispatchWorkItem?
@@ -47,19 +48,23 @@ final class LogoDriver {
         return mapping.allSatisfy { $0[1] >= 999 }
     }
 
-    var supportsClosedLid: Bool { true }
+    var supportsClosedLid: Bool { staticLogo != nil }
     var isLidClosed: Bool { closedLid.isClosed }
+    var needsClosedLidHandoff: Bool { staticLogo?.needsHandoff == true }
 
     func applyWithLidClosed(nits: Double, force: Bool = false) -> Bool {
-        guard nits.isFinite, closedLid.isClosed else { return false }
-        let starting = !closedLid.active
-        guard closedLid.begin() else { return false }
-        prepareOpeningFade()
-        return apply(nits: nits, force: starting || force, preserveLidOverride: true)
+        guard nits.isFinite, let staticLogo else { return false }
+        let applied = staticLogo.apply(nits: nits) {
+            client.perform(copy, with: "LEPWMState")?.takeRetainedValue() as? [String: Double]
+        }
+        if applied, staticLogo.isDrivingLight { prepareOpeningFade() }
+        return applied
     }
 
     func releaseClosedLid() {
-        if closedLid.release() { last = nil }
+        let releasedNative = closedLid.release()
+        let releasedStatic = staticLogo?.release() == true
+        if releasedNative || releasedStatic { last = nil }
         attemptedOpeningFade = false
         guard ownsOpeningFade else { return }
         if closedLid.isClosed {

@@ -44,6 +44,7 @@ final class ClosedLidAwake {
                 self.lease?.fileHandleForWriting.closeFile()
                 self.lease = nil
                 ClosedLidLogo.recoverAfterExit()
+                ClosedLidStaticLogo.recoverAfterExit()
                 LidGuard.setSleepDisabled(false)
                 self.onStopped?(ClosedLidPolicy.Stop(rawValue: ended.terminationStatus) ?? .unavailable)
             }
@@ -94,6 +95,7 @@ enum LidGuard {
         var assertion: IOPMAssertionID = 0
         defer {
             ClosedLidLogo.recoverAfterExit()
+            ClosedLidStaticLogo.recoverAfterExit()
             if assertion != 0 { IOPMAssertionRelease(assertion) }
             if ownsOverride { setSleepDisabled(false) }
         }

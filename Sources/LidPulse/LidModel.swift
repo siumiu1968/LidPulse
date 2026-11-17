@@ -81,6 +81,7 @@ final class LidModel {
     @ObservationIgnored private var timer: Timer?
     @ObservationIgnored private var powerTimer: Timer?
     private var closedLidLowPower = false
+    @ObservationIgnored private var lidHandoff: Task<Void, Never>?
     @ObservationIgnored private var started = 0.0
     @ObservationIgnored private var audioRetry = false
     @ObservationIgnored private var displayAsleep = false
@@ -236,8 +237,15 @@ final class LidModel {
                 closedLidLowPower = true
                 log.info("Entered closed-lid low-power mode; audio and animation updates stopped")
             }
-            timer?.invalidate()
-            timer = nil
+            if timer?.timeInterval != 1 {
+                timer?.invalidate()
+                let check = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
+                    MainActor.assumeIsolated { self?.tick() }
+                }
+                check.tolerance = 0.25
+                RunLoop.main.add(check, forMode: .common)
+                timer = check
+            }
             let nits = 1000 * pow(brightness, 2)
             let failed = !driver.applyWithLidClosed(nits: nits, force: force)
             if closedLidFailed != failed { closedLidFailed = failed }
@@ -515,8 +523,21 @@ final class LidModel {
     }
 
     func lidConfigurationChanged() {
+        lidHandoff?.cancel()
+        lidHandoff = nil
         guard keepLogoWhenLidClosed, mode != .system else { return }
         tick()
+        guard lidClosed, !suspended, mode != .dark else { return }
+        lidHandoff = Task { [weak self] in
+            let clock = ContinuousClock()
+            let deadline = clock.now + .milliseconds(80)
+            while clock.now < deadline {
+                do { try await clock.sleep(for: .milliseconds(2), tolerance: .zero) }
+                catch { return }
+                guard let self, self.lidClosed, self.keepLogoWhenLidClosed, !self.suspended else { return }
+                if self.driver?.needsClosedLidHandoff == true { self.tick() }
+            }
+        }
     }
 
     private func refreshLidState() {
@@ -541,6 +562,7 @@ final class LidModel {
 
     func terminate() {
         timer?.invalidate()
+        lidHandoff?.cancel()
         powerTimer?.invalidate()
         audio.stop()
         driver?.releaseClosedLid()
