@@ -134,8 +134,8 @@ struct PulsePanel: View {
             if model.supportsClosedLid {
                 actionSwitch(language.text("合蓋時保持 Logo 發光", "Keep Logo Lit With Lid Closed"),
                              isOn: Binding(get: { model.keepLogoWhenLidClosed }, set: model.setKeepLogoWhenLidClosed))
-                .help(language.text("Mac 合蓋後會保持清醒，沿用目前模式同亮度，最多 30 分鐘。電量低或溫度過高時會停止；請勿放入袋中。",
-                                    "Keeps your Mac awake with the selected mode and brightness for up to 30 minutes. Stops on low battery or high temperature. Do not put it in a bag."))
+                .help(language.text("合蓋後會熄屏，以設定亮度固定發光，暫停音訊分析同動畫；開蓋恢復原模式。最多 30 分鐘，並保留低電量及高溫保護。Mac 仍保持清醒，請勿放入袋中。",
+                                    "Turns displays off and holds the selected brightness while audio analysis and animations pause. Opening the lid restores your mode. Limited to 30 minutes with low-battery and thermal protection. Your Mac stays awake; do not put it in a bag."))
             }
             Button(model.updates.availableVersion.map { language.text("更新至 \($0)…", "Update to \($0)…") }
                    ?? language.text("檢查更新…", "Check for Updates…"), action: checkUpdates)

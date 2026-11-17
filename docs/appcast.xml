@@ -6,6 +6,31 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
     <channel>
         <title>LidPulse</title>
         <item>
+            <title>1.2.0</title>
+            <pubDate>Tue, 17 Nov 2026 12:07:36 +0900</pubDate>
+            <sparkle:version>10</sparkle:version>
+            <sparkle:shortVersionString>1.2.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.2</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[# LidPulse 1.2.0
+
+- 合蓋亮燈時會要求顯示器熄屏。
+- 合蓋期間以設定亮度固定發光，暫停音訊分析同呼吸、音樂及 AI 燈效動畫；開蓋後恢復原本模式。
+- 減少合蓋期間嘅定時更新，保留 30 分鐘上限、高溫同低電量保護。
+
+Mac 會保持清醒，其他程式仍然可以運作；實際耗電及發熱會受其他工作影響。
+
+---
+
+- Requests display sleep during closed-lid lighting.
+- Holds your selected brightness with audio analysis and animated effects paused. Opening the lid restores your previous mode.
+- Reduces periodic work while preserving the 30-minute limit, thermal protection and low-battery cutoff.
+
+Your Mac stays awake and other apps can continue running. Power consumption and heat depend on other workloads.
+]]></description>
+            <enclosure url="https://github.com/siumiu1968/LidPulse/releases/download/v1.2.0/LidPulse-1.2.0.dmg" length="3218275" type="application/octet-stream" sparkle:edSignature="S5SZLHgvJChZPOtmwZvFdeFqw3EttjS/EWMGLfbXI3HTKp+EybCmLJq97k4nd85SWSaOqGRDNoddqrSf3Y0uCQ=="/>
+        </item>
+        <item>
             <title>1.1.1</title>
             <pubDate>Tue, 17 Nov 2026 11:37:31 +0900</pubDate>
             <sparkle:version>9</sparkle:version>
@@ -56,6 +81,6 @@ Closed-lid lighting keeps your Mac awake. Do not put it in a bag. Full brightnes
     </channel>
 </rss>
 <!-- sparkle-signatures:
-edSignature: qFJpcT/CLr2GrORR+2LwiWt3CLfERQ1vsZsVlF4hAZ49seUGegAwjBCiYRh9Ho1MnSsKW1uVy+wr2hz5JJjhCA==
-length: 3329
+edSignature: 5IY7e57WypeD38rdiud6+NCiCo/Gx0jYDslqLQT6bjsO2gqgTzQKBJ4J6ByGbEP9ra0h95UoGEsmbJErcJLGDQ==
+length: 4886
 -->

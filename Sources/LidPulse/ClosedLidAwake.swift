@@ -2,6 +2,7 @@ import Foundation
 import IOKit
 import IOKit.pwr_mgt
 import Darwin
+import os
 
 /// An unprivileged guard releases the global lid override if the app exits or crashes.
 @MainActor
@@ -100,12 +101,14 @@ enum LidGuard {
         ownsOverride = true
         FileHandle.standardOutput.write(Data("ready\n".utf8))
         var closedSince: TimeInterval?
+        var displaySleepRequested = false
+        let log = Logger(subsystem: "local.lidpulse", category: "lid-guard")
         while true {
             var input = pollfd(fd: STDIN_FILENO, events: Int16(POLLIN | POLLHUP), revents: 0)
-            if poll(&input, 1, 500) != 0 { return 0 }
+            if poll(&input, 1, 1000) != 0 { return 0 }
             let closed = isClosed
             let now = ProcessInfo.processInfo.systemUptime
-            if !closed { closedSince = nil }
+            if !closed { closedSince = nil; displaySleepRequested = false }
             else if closedSince == nil { closedSince = now }
             if let reason = ClosedLidPolicy.stopReason(closed: closed, elapsed: now - (closedSince ?? now),
                                                        power: .read(), thermal: ProcessInfo.processInfo.thermalState) {
@@ -120,6 +123,22 @@ enum LidGuard {
                 assertion = 0
             }
             guard setSleepDisabled(true) else { return ClosedLidPolicy.Stop.unavailable.rawValue }
+            if closed, !displaySleepRequested, isClosed {
+                guard sleepDisplay() else { return ClosedLidPolicy.Stop.unavailable.rawValue }
+                displaySleepRequested = true
+                log.info("Requested display sleep for closed-lid low-power session")
+            }
         }
+    }
+
+    private static func sleepDisplay() -> Bool {
+        let command = Process()
+        command.executableURL = URL(fileURLWithPath: "/usr/bin/pmset")
+        command.arguments = ["displaysleepnow"]
+        command.standardOutput = FileHandle.nullDevice
+        command.standardError = FileHandle.nullDevice
+        do { try command.run() } catch { return false }
+        command.waitUntilExit()
+        return command.terminationStatus == 0
     }
 }

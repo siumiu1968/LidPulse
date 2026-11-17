@@ -49,14 +49,13 @@ final class LogoDriver {
 
     var supportsClosedLid: Bool { true }
     var isLidClosed: Bool { closedLid.isClosed }
-    var needsClosedLidHandoff: Bool { false }
 
-    func applyWithLidClosed(nits: Double) -> Bool {
+    func applyWithLidClosed(nits: Double, force: Bool = false) -> Bool {
         guard nits.isFinite, closedLid.isClosed else { return false }
         let starting = !closedLid.active
         guard closedLid.begin() else { return false }
         prepareOpeningFade()
-        return apply(nits: nits, force: starting, preserveLidOverride: true)
+        return apply(nits: nits, force: starting || force, preserveLidOverride: true)
     }
 
     func releaseClosedLid() {

@@ -80,7 +80,7 @@ final class LidModel {
     @ObservationIgnored private let recoveryURL: URL
     @ObservationIgnored private var timer: Timer?
     @ObservationIgnored private var powerTimer: Timer?
-    @ObservationIgnored private var lidHandoff: Task<Void, Never>?
+    private var closedLidLowPower = false
     @ObservationIgnored private var started = 0.0
     @ObservationIgnored private var audioRetry = false
     @ObservationIgnored private var displayAsleep = false
@@ -110,6 +110,7 @@ final class LidModel {
 
     var summary: String {
         if !supported { return language.text("未偵測到可控制嘅 Logo 燈", "No supported logo light detected") }
+        if closedLidLowPower { return language.text("合蓋省電 · 固定亮度", "Lid closed · Steady light") }
         switch mode {
         case .system: return language.text("已停用 · Logo 跟隨系統", "Off · Logo follows the system")
         case .agents: return agentStatus
@@ -188,13 +189,14 @@ final class LidModel {
         started = time
         audioRetry = false
         if newMode == .system {
+            closedLidLowPower = false
             output = 0
             driver?.releaseClosedLid()
             if !competingApp, driver?.restore() == false { notice = .init("未能還原 Logo 設定。請重新開關 LidPulse 再試。", "Could not restore the logo settings. Toggle LidPulse and try again.") }
             awake.stop()
             return
         }
-        if !suspended && newMode == .music && !startAudio() { return }
+        if !suspended && !lidClosed && newMode == .music && !startAudio() { return }
         let tickTimer = Timer(timeInterval: 0.05, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.tick() }
         }
@@ -202,7 +204,12 @@ final class LidModel {
         RunLoop.main.add(tickTimer, forMode: .common)
         timer = tickTimer
         tick()
-        if newMode == .dark { awake.stop() }
+        if newMode == .dark {
+            closedLidLowPower = false
+            timer?.invalidate()
+            timer = nil
+            awake.stop()
+        }
     }
 
     private func startAudio() -> Bool {
@@ -223,6 +230,29 @@ final class LidModel {
         let wasSuspended = suspended
         refreshLidState()
         guard updateSuspension(wasSuspended: wasSuspended) else { return }
+        if lidClosed, mode != .dark {
+            if !closedLidLowPower {
+                audio.stop()
+                closedLidLowPower = true
+                log.info("Entered closed-lid low-power mode; audio and animation updates stopped")
+            }
+            timer?.invalidate()
+            timer = nil
+            let nits = 1000 * pow(brightness, 2)
+            let failed = !driver.applyWithLidClosed(nits: nits, force: force)
+            if closedLidFailed != failed { closedLidFailed = failed }
+            if failed {
+                awake.stop()
+                closedLidSessionEnded(.unavailable)
+            } else { output = brightness }
+            return
+        }
+        if closedLidLowPower {
+            closedLidLowPower = false
+            log.info("Left closed-lid low-power mode; resuming selected light mode")
+            select(mode)
+            return
+        }
         let now = time
         let elapsed = now - started
         let level: Double
@@ -268,7 +298,7 @@ final class LidModel {
         // Map the slider to the LED’s available range with finer control near darkness.
         let nits = 1000 * pow(drive, 2)
         if lidClosed {
-            let failed = !driver.applyWithLidClosed(nits: nits)
+            let failed = !driver.applyWithLidClosed(nits: nits, force: force)
             if closedLidFailed != failed { closedLidFailed = failed }
             if failed { return }
         } else if !driver.apply(nits: nits, force: force) {
@@ -458,10 +488,10 @@ final class LidModel {
         case .thermal: message = .init("Mac 溫度偏高，已停止合蓋亮燈並恢復正常睡眠。", "Your Mac is too warm. Closed-lid lighting stopped and normal sleep has been restored.")
         case .unavailable: message = .init("合蓋控制已中斷，已恢復正常睡眠。", "Closed-lid control was interrupted. Normal sleep has been restored.")
         }
-        notice = message
         let wasSuspended = suspended
         refreshLidState()
-        _ = updateSuspension(wasSuspended: wasSuspended)
+        if updateSuspension(wasSuspended: wasSuspended) { tick(force: true) }
+        notice = message
     }
 
     func suspend(_ source: SuspensionSource, _ sleeping: Bool) {
@@ -485,23 +515,8 @@ final class LidModel {
     }
 
     func lidConfigurationChanged() {
-        lidHandoff?.cancel()
-        lidHandoff = nil
         guard keepLogoWhenLidClosed, mode != .system else { return }
         tick()
-        guard lidClosed, !suspended, mode != .dark else { return }
-
-        // Check more frequently only while the native close transition can blank the LED.
-        lidHandoff = Task { [weak self] in
-            let clock = ContinuousClock()
-            let deadline = clock.now + .milliseconds(60)
-            while clock.now < deadline {
-                do { try await clock.sleep(for: .milliseconds(2), tolerance: .zero) }
-                catch { return }
-                guard let self, self.keepLogoWhenLidClosed, self.lidClosed, !self.suspended else { return }
-                if self.driver?.needsClosedLidHandoff == true { self.tick() }
-            }
-        }
     }
 
     private func refreshLidState() {
@@ -519,7 +534,7 @@ final class LidModel {
         }
         if wasSuspended {
             if !lidClosed { started = time }
-            if mode == .music && !startAudio() { return false }
+            if mode == .music && !closedLidLowPower && !startAudio() { return false }
         }
         return true
     }
@@ -527,7 +542,6 @@ final class LidModel {
     func terminate() {
         timer?.invalidate()
         powerTimer?.invalidate()
-        lidHandoff?.cancel()
         audio.stop()
         driver?.releaseClosedLid()
         driver?.restoreOpeningFade()
