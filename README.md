@@ -22,7 +22,7 @@ LidPulse was tested on an M5 Max PROLED XDR MacBook Pro (`Mac17,10`) running mac
 
 Turn LidPulse off to return brightness control to macOS, or switch **Logo Light** off to keep the lid light dark while LidPulse is running. A live preview and brightness slider are available in the menu bar. The separate Settings window includes English and Traditional Chinese, Open at Login, and individual agent connections.
 
-On supported hardware, turn on **Keep Logo Lit With Lid Closed** in the menu bar panel to continue the selected mode and brightness with the lid closed. Your Mac stays awake for up to 10 minutes per closed-lid session, without administrator approval. Low battery or elevated thermal pressure ends the session early. Turning the option off, disabling the light, or quitting restores normal sleep. Do not put your Mac in a bag while this is enabled.
+On supported hardware, turn on **Keep Logo Lit With Lid Closed** in the menu bar panel to continue the selected mode and brightness with the lid closed. Your Mac stays awake for up to 30 minutes per closed-lid session, without administrator approval. Battery charge below 20% while on battery power, or serious or critical thermal pressure, ends the session early. Turning the option off, disabling the light, or quitting restores normal sleep. Do not put your Mac in a bag while this is enabled.
 
 Use **Check for Updates…** in the menu or Settings to install new releases. Automatic checking and installation are enabled by default and can be changed in Settings. Update feeds and downloads are signed and verified before installation; your settings are preserved. Users on 1.0.x need to install this release once to gain in-app updates.
 
@@ -55,7 +55,7 @@ The second command builds the DMG in `outputs/` without quitting a running copy 
 
 - **下載：** 喺 [GitHub Releases](https://github.com/siumiu1968/LidPulse/releases/latest) 下載 DMG，將 LidPulse 拖入「應用程式」。App 開啟後會出現喺選單列。此版本未經 Apple 公證，macOS 首次開啟下載版時可能會阻擋。
 - **支援機型：** 睇清楚產品名有冇寫 **PROLED XDR 顯示器**。14 吋同 16 吋 PROLED XDR 版有發光 Logo。LidPulse 已喺 M5 Max 機型（`Mac17,10`、macOS 27.2）實測。同期推出嘅 14 吋 M6 版用 Liquid Retina XDR。 [Apple 發光 Logo 說明](https://support.apple.com/en-us/149248) · [Apple M6 產品公告](https://www.apple.com/newsroom/2026/10/apple-introduces-the-new-14-inch-macbook-pro-with-m6/)
-- **合蓋時保留燈效：** 支援嘅機型可以喺主選單開啟「合蓋時保持 Logo 發光」，合蓋後會沿用目前模式同亮度，毋須管理員授權。Mac 每次合蓋保持清醒最多 10 分鐘，低電量或系統報告升溫時會提早停止。關閉此功能、熄 Logo 燈或退出 App 時會恢復正常睡眠。開啟期間請勿將 Mac 放入袋中。
+- **合蓋時保留燈效：** 支援嘅機型可以喺主選單開啟「合蓋時保持 Logo 發光」，合蓋後會沿用目前模式同亮度，毋須管理員授權。Mac 每次合蓋保持清醒最多 30 分鐘，電池供電時電量低於 20%，或者系統報告嚴重或危急熱壓力時會提早停止。關閉此功能、熄 Logo 燈或退出 App 時會恢復正常睡眠。開啟期間請勿將 Mac 放入袋中。
 - **最高亮度：** 如果部機仍有限制，按「解除最高亮度限制…」後由 macOS 要求管理員授權。之後可以還原之前嘅限制；平時開 App 唔會問密碼。
 - **音樂及 AI 狀態：** 音樂模式需系統音訊權限，音訊只喺本機分析。喺設定可以分開連接 Codex 同 Claude Code；Codex 需審閱同信任 hooks 先會觸發。
 

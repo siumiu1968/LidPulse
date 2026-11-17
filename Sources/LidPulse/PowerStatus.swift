@@ -23,16 +23,14 @@ struct PowerStatus {
 }
 
 enum ClosedLidPolicy {
-    static let maximumDuration: TimeInterval = 10 * 60
+    static let maximumDuration: TimeInterval = 30 * 60
     enum Stop: Int32 { case timeout = 2, battery = 3, thermal = 4, unavailable = 5 }
 
     static func stopReason(closed: Bool, elapsed: TimeInterval, power: PowerStatus,
                            thermal: ProcessInfo.ThermalState) -> Stop? {
         guard closed else { return nil }
-        // Stop at the first elevated thermal-pressure level rather than waiting
-        // for macOS to report serious pressure or throttle the machine.
-        if thermal != .nominal { return .thermal }
-        if power.onBattery, power.charge.map({ $0 <= 0.20 }) ?? true { return .battery }
+        if thermal == .serious || thermal == .critical { return .thermal }
+        if power.onBattery, power.charge.map({ $0 < 0.20 }) ?? true { return .battery }
         if elapsed >= maximumDuration { return .timeout }
         return nil
     }

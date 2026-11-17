@@ -1,8 +1,31 @@
-<?xml version="1.0" standalone="yes"?><!-- sparkle-sign-warning:
+<?xml version="1.0" standalone="yes"?>
+<!-- sparkle-sign-warning:
 IMPORTANT: This file was signed by Sparkle. Any modifications to this file requires re-signing this file with generate_appcast or sign_update! The signed signature will be embedded at the end of this file.
---><rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+-->
+<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
     <channel>
         <title>LidPulse</title>
+        <item>
+            <title>1.1.1</title>
+            <pubDate>Tue, 17 Nov 2026 11:37:31 +0900</pubDate>
+            <sparkle:version>9</sparkle:version>
+            <sparkle:shortVersionString>1.1.1</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.2</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[# LidPulse 1.1.1
+
+- 合蓋保持發光嘅上限調整至每次 30 分鐘。
+- 系統報告嚴重或危急熱壓力時，會停止合蓋亮燈並恢復正常睡眠。
+- 電池供電時，電量低於 20% 亦會提早停止。
+
+---
+
+- Extended closed-lid lighting sessions to 30 minutes.
+- Sessions stop and normal sleep resumes when macOS reports serious or critical thermal pressure.
+- Sessions also stop below 20% charge while running on battery.
+]]></description>
+            <enclosure url="https://github.com/siumiu1968/LidPulse/releases/download/v1.1.1/LidPulse-1.1.1.dmg" length="3222208" type="application/octet-stream" sparkle:edSignature="EiafPmw6r6z7fl1+H24CoAv/OpoTYhKQDHy/gI7Ok0ZwzagUS91f488GHcSFrrre42DKsdJ3Aq6bb0RW+CyyDg=="/>
+        </item>
         <item>
             <title>1.1.0</title>
             <pubDate>Tue, 17 Nov 2026 11:19:56 +0900</pubDate>
@@ -28,10 +51,11 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
 
 Closed-lid lighting keeps your Mac awake. Do not put it in a bag. Full brightness unlocking still requires macOS administrator approval.
 ]]></description>
-            <enclosure url="https://github.com/siumiu1968/LidPulse/releases/download/v1.1.0/LidPulse-1.1.0.dmg" length="3222224" type="application/octet-stream" sparkle:edSignature="uqoK1xIkQ/lF2fLAYkFenY1ZZsbCbyGTj8rmpflV7vKaxMSHWkMTouhJE6CpY1qCiphKn3smcZ9atSpQTM9vCQ=="></enclosure>
+            <enclosure url="https://github.com/siumiu1968/LidPulse/releases/download/v1.1.0/LidPulse-1.1.0.dmg" length="3222224" type="application/octet-stream" sparkle:edSignature="uqoK1xIkQ/lF2fLAYkFenY1ZZsbCbyGTj8rmpflV7vKaxMSHWkMTouhJE6CpY1qCiphKn3smcZ9atSpQTM9vCQ=="/>
         </item>
     </channel>
-</rss><!-- sparkle-signatures:
-edSignature: iuonORsEyH3rTqDD0wa5eH2w9WDyPyR6RTPUtqXYOs+s0Pe4cVVVdpyxFt8jvL7GXwV3gkBOda7yIUifHyOwDA==
-length: 2129
+</rss>
+<!-- sparkle-signatures:
+edSignature: qFJpcT/CLr2GrORR+2LwiWt3CLfERQ1vsZsVlF4hAZ49seUGegAwjBCiYRh9Ho1MnSsKW1uVy+wr2hz5JJjhCA==
+length: 3329
 -->

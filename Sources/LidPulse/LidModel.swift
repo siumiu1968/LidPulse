@@ -453,7 +453,7 @@ final class LidModel {
         driver?.releaseClosedLid()
         let message: LocalizedNotice
         switch reason {
-        case .timeout: message = .init("合蓋亮燈已滿 10 分鐘，已恢復正常睡眠。", "The 10-minute closed-lid session ended. Normal sleep has been restored.")
+        case .timeout: message = .init("合蓋亮燈已滿 30 分鐘，已恢復正常睡眠。", "The 30-minute closed-lid session ended. Normal sleep has been restored.")
         case .battery: message = .init("電量偏低，已停止合蓋亮燈並恢復正常睡眠。", "Battery is low. Closed-lid lighting stopped and normal sleep has been restored.")
         case .thermal: message = .init("Mac 溫度偏高，已停止合蓋亮燈並恢復正常睡眠。", "Your Mac is too warm. Closed-lid lighting stopped and normal sleep has been restored.")
         case .unavailable: message = .init("合蓋控制已中斷，已恢復正常睡眠。", "Closed-lid control was interrupted. Normal sleep has been restored.")
