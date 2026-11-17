@@ -44,6 +44,21 @@ struct LidSettings: View {
                         .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 }
             }
+            Section(lang.text("軟件更新", "Software Updates")) {
+                HStack {
+                    Text("LidPulse \(model.updates.version)")
+                    Spacer()
+                    Button(lang.text("檢查更新…", "Check for Updates…")) { model.updates.check() }
+                        .disabled(!model.updates.canCheck)
+                }
+                Toggle(lang.text("自動檢查更新", "Automatically check for updates"), isOn: Binding(
+                    get: { model.updates.automaticallyChecks }, set: model.updates.setAutomaticChecks))
+                Toggle(lang.text("自動下載及安裝更新", "Automatically download and install updates"), isOn: Binding(
+                    get: { model.updates.automaticallyInstalls }, set: model.updates.setAutomaticInstalls))
+                    .disabled(!model.updates.automaticallyChecks)
+                Text(lang.text("更新會驗證發佈簽章，安裝後保留你嘅設定。", "Updates are verified before installation. Your settings are preserved."))
+                    .font(.caption).foregroundStyle(.secondary)
+            }
             Section(lang.text("AI 連接", "Agent Connections")) {
                 ForEach(Agent.allCases) { agent in
                     agentRow(agent)

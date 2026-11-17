@@ -13,7 +13,7 @@ final class LogoDriver {
     private let recovery: URL
     private var original: [[Double]]?
     private var last: Double?
-    private lazy var closedLid = ClosedLidLogo()
+    private lazy var closedLid = ClosedLidLogo(client: client)
     private var attemptedOpeningFade = false
     private var ownsOpeningFade = false
     private var openingFadeReset: DispatchWorkItem?
@@ -47,24 +47,23 @@ final class LogoDriver {
         return mapping.allSatisfy { $0[1] >= 999 }
     }
 
-    var supportsClosedLid: Bool { closedLid != nil }
-    var isLidClosed: Bool { closedLid?.isClosed == true }
-    var needsClosedLidHandoff: Bool { closedLid?.needsHandoff == true }
+    var supportsClosedLid: Bool { true }
+    var isLidClosed: Bool { closedLid.isClosed }
+    var needsClosedLidHandoff: Bool { false }
 
     func applyWithLidClosed(nits: Double) -> Bool {
-        guard nits.isFinite, let closedLid else { return false }
-        let applied = closedLid.apply(nits: nits) {
-            client.perform(copy, with: "LEPWMState")?.takeRetainedValue() as? [String: Double]
-        }
-        if applied, closedLid.isDrivingLight { prepareOpeningFade() }
-        return applied
+        guard nits.isFinite, closedLid.isClosed else { return false }
+        let starting = !closedLid.active
+        guard closedLid.begin() else { return false }
+        prepareOpeningFade()
+        return apply(nits: nits, force: starting, preserveLidOverride: true)
     }
 
     func releaseClosedLid() {
-        if closedLid?.release() == true { last = nil }
+        if closedLid.release() { last = nil }
         attemptedOpeningFade = false
         guard ownsOpeningFade else { return }
-        if closedLid?.isClosed == true {
+        if closedLid.isClosed {
             restoreOpeningFade()
         } else if openingFadeReset == nil {
             // The lid notification can arrive before CoreBrightness starts its ramp.
@@ -128,9 +127,9 @@ final class LogoDriver {
 
     private var recoveryExists: Bool { FileManager.default.fileExists(atPath: recovery.path) }
 
-    func apply(nits: Double, force: Bool = false) -> Bool {
+    func apply(nits: Double, force: Bool = false, preserveLidOverride: Bool = false) -> Bool {
         guard nits.isFinite else { return false }
-        releaseClosedLid()
+        if !preserveLidOverride { releaseClosedLid() }
         let value = min(1000, max(0, nits))
         if !force, let last, abs(value - last) < 0.45, value != 0 || last == 0 { return true }
 

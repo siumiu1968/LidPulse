@@ -5,6 +5,7 @@ import SwiftUI
 @main
 enum LidPulseApp {
     @MainActor static func main() {
+        if CommandLine.arguments.contains("--lid-guard") { exit(LidGuard.run()) }
         let app = NSApplication.shared
         let delegate = LidDelegate()
         app.delegate = delegate
@@ -35,7 +36,11 @@ final class LidDelegate: NSObject, NSApplicationDelegate {
         status.button?.target = self
         status.button?.action = #selector(togglePanel)
         statusItem = status
-        let host = NSHostingController(rootView: PulsePanel(model: model, openSettings: { [weak self] in self?.openSettings() }))
+        let host = NSHostingController(rootView: PulsePanel(model: model, openSettings: { [weak self] in self?.openSettings() },
+            checkUpdates: { [weak self] in
+                self?.popover.performClose(nil)
+                self?.model.updates.check()
+            }))
         host.sizingOptions = [.preferredContentSize]
         popover.contentViewController = host
         popover.behavior = .transient
@@ -66,6 +71,7 @@ final class LidDelegate: NSObject, NSApplicationDelegate {
         }
         observeLid()
         model.launch()
+        model.updates.start()
     }
 
     private func observeLid() {

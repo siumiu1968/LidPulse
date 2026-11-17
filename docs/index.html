@@ -3,19 +3,19 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>LidPulse — MacBook Apple Logo Light Control for macOS</title>
-<meta name="description" content="Control the illuminated Apple logo on supported MacBook Pro lids. Set brightness, sync the logo to music, or show Codex and Claude Code activity from your macOS menu bar.">
+<title>LidPulse — Glowing Apple Logo Control for OLED MacBook Pro</title>
+<meta name="description" content="Dim or turn off the glowing Apple logo on supported OLED MacBook Pro models with PROLED XDR. Set breathing effects, music sync, or keep it lit with the lid closed.">
 <link rel="canonical" href="https://siumiu1968.github.io/LidPulse/">
 <meta property="og:type" content="website">
-<meta property="og:title" content="LidPulse — MacBook Apple Logo Light Control">
-<meta property="og:description" content="Use your MacBook Pro lid light for music, breathing effects, or Codex and Claude Code status.">
+<meta property="og:title" content="LidPulse — Glowing Apple Logo Control for OLED MacBook Pro">
+<meta property="og:description" content="Control the glowing Apple logo on supported PROLED XDR MacBook Pro models. Dim it, turn it off, or give it a breathing effect.">
 <meta property="og:url" content="https://siumiu1968.github.io/LidPulse/">
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
   "@type": "SoftwareApplication",
   "name": "LidPulse",
-  "description": "A macOS menu bar app for MacBook Pro lid logo brightness, music beats, and Codex and Claude Code status lights.",
+  "description": "A macOS menu bar app for controlling the glowing Apple logo on supported OLED MacBook Pro models with PROLED XDR Display.",
   "applicationCategory": "UtilitiesApplication",
   "operatingSystem": "macOS",
   "softwareRequirements": "macOS 14.2 or newer and an Apple silicon Mac with a supported illuminated lid logo",
@@ -51,28 +51,39 @@
 <header class="intro">
   <p class="kicker">A macOS menu bar app</p>
   <h1>LidPulse</h1>
-  <p class="lead">Give your MacBook Pro lid light a job.</p>
-  <p>Control the illuminated Apple logo on a supported MacBook Pro. Keep it steady, set a breathing effect, follow the music you play, or see when Codex and Claude Code are busy or need you.</p>
+  <p class="lead">Control the glowing Apple logo on your OLED MacBook Pro.</p>
+  <p>Dim or turn off the lid light on supported PROLED XDR models from the macOS menu bar. Make it breathe, follow your music, or show when Codex and Claude Code need you.</p>
   <nav class="links" aria-label="LidPulse links">
     <a class="button" href="https://github.com/siumiu1968/LidPulse/releases/latest">Download for macOS</a>
+    <a href="#compatibility">Check your MacBook model</a>
     <a href="https://github.com/siumiu1968/LidPulse">View GitHub repository</a>
     <a href="#zh-hk" lang="zh-HK">繁體中文</a>
   </nav>
 </header>
+<section aria-labelledby="compatibility">
+  <h2 id="compatibility">Which MacBook Pro has the glowing Apple logo?</h2>
+  <p>Apple's 14-inch and 16-inch MacBook Pro with <strong>PROLED XDR Display</strong> use tandem OLED and have an illuminated logo on the lid. The separate 14-inch M6 model uses Liquid Retina XDR. Check for PROLED XDR in the product name. <a href="https://www.apple.com/newsroom/2026/10/apple-unveils-groundbreaking-macbook-pro-with-proled-xdr-display/">Apple's PROLED XDR announcement</a> · <a href="https://support.apple.com/en-us/149248">Apple's illuminated logo guide</a> · <a href="https://www.apple.com/newsroom/2026/10/apple-introduces-the-new-14-inch-macbook-pro-with-m6/">Apple's M6 announcement</a></p>
+  <p>LidPulse was tested on an M5 Max PROLED XDR MacBook Pro (<code>Mac17,10</code>) running macOS 27.2. It requires a physical lid light and a compatible controller.</p>
+</section>
 <section aria-labelledby="modes">
-  <h2 id="modes">Four ways to use the Apple logo light</h2>
+  <h2 id="modes">Five ways to use the Apple logo light</h2>
   <div class="grid">
     <article class="card"><h3>Steady</h3><p>Set the brightness of the Apple logo independently of the screen.</p></article>
     <article class="card"><h3>Breathe</h3><p>Fade the logo up and down at a pace you choose.</p></article>
+    <article class="card"><h3>Battery</h3><p>Let the logo dim as your battery runs down, within your chosen brightness.</p></article>
     <article class="card"><h3>Music</h3><p>Pulse along with music playing on your Mac. Set the intensity or go dark between beats.</p></article>
     <article class="card"><h3>Agents</h3><p>See when Codex or Claude Code is working, idle, or waiting for your attention.</p></article>
   </div>
 </section>
 <section aria-labelledby="install">
   <h2 id="install">Install on a supported Mac</h2>
-  <p>LidPulse needs an Apple silicon Mac with a physically illuminated lid logo. It has been tested on a PROLED XDR MacBook Pro (<code>Mac17,10</code>) running macOS 27.2.</p>
   <p>Open the DMG, drag LidPulse into Applications, then open it. Find the glowing Apple logo in the menu bar. Use Settings to switch languages, open at login, or connect an agent.</p>
-  <p>On supported hardware, turn on <strong>Keep Logo Lit With Lid Closed</strong> in the menu bar panel to continue the selected mode and brightness while the Mac is awake. Turn it off to let the logo go dark when you close the lid.</p>
+  <h3>How do I dim or turn off the MacBook Pro logo?</h3>
+  <p>Use the brightness slider or switch <strong>Logo Light</strong> off in the menu bar. Both controls work without typing a Terminal command.</p>
+  <h3>Can the logo stay lit when I close the lid?</h3>
+  <p>On supported hardware, turn on <strong>Keep Logo Lit With Lid Closed</strong> to continue the selected mode and brightness with the lid closed. Your Mac stays awake for up to 10 minutes per session without administrator approval. Low battery or elevated thermal pressure ends the session early. Turning this off, disabling the light, or quitting restores normal sleep. Do not put your Mac in a bag while this is enabled.</p>
+  <h3>How do I update LidPulse?</h3>
+  <p>Choose <strong>Check for Updates</strong> in the menu or Settings. Automatic checks and installation are enabled by default and can be changed in Settings. Updates are signed and verified. Users on 1.0.x need to download this release once to enable in app updates.</p>
   <p>This release is ad hoc signed and has not been notarized by Apple. macOS may block a downloaded copy at first launch.</p>
 </section>
 <section aria-labelledby="permissions">
@@ -82,7 +93,7 @@
 </section>
 <section id="zh-hk" lang="zh-HK" aria-labelledby="chinese">
   <h2 id="chinese">MacBook 機蓋 Apple Logo 燈控制</h2>
-  <p>LidPulse 係一個選單列 App，可以調較機蓋 Logo 亮度，設定長亮、呼吸或音樂節拍，亦可以顯示 Codex 同 Claude Code 狀態。支援有實體發光 Logo 嘅 Apple silicon Mac。</p>
+  <p>LidPulse 係一個選單列 App，可以調較 OLED MacBook Pro 嘅機蓋 Logo 亮度、熄燈、設定呼吸或音樂節拍，亦可以顯示 Codex 同 Claude Code 狀態。買機時留意產品名有冇寫「PROLED XDR 顯示器」。LidPulse 已喺 M5 Max 機型（<code>Mac17,10</code>）實測。</p>
   <p>獨立設定有繁體中文及英文介面、登入啟動、AI 連接及最高亮度選項。如果部機仍有限制，你可以按「解除最高亮度限制」，由 macOS 要求管理員授權，之後亦可以還原。</p>
   <p><a href="https://github.com/siumiu1968/LidPulse/releases/latest">下載 DMG</a> · <a href="https://github.com/siumiu1968/LidPulse#繁體中文">GitHub 安裝說明</a></p>
 </section>

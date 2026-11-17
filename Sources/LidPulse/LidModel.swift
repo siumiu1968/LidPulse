@@ -5,13 +5,14 @@ import ServiceManagement
 import os
 
 enum LidMode: String, CaseIterable, Identifiable {
-    case system, steady, breathe, music, agents, dark
+    case system, steady, breathe, battery, music, agents, dark
     var id: Self { self }
     func title(_ language: Language) -> String {
         switch self {
         case .system: language.text("跟隨系統", "Follow System")
         case .steady: language.text("長亮", "Steady")
         case .breathe: language.text("呼吸", "Breathe")
+        case .battery: language.text("電量", "Battery")
         case .music: language.text("音樂節拍", "Music")
         case .agents: language.text("AI 狀態", "Agents")
         case .dark: language.text("熄燈", "Logo Off")
@@ -22,6 +23,7 @@ enum LidMode: String, CaseIterable, Identifiable {
         case .system: "display"
         case .steady: "sun.max"
         case .breathe: "waveform.path"
+        case .battery: "battery.75percent"
         case .music: "music.note"
         case .agents: "terminal"
         case .dark: "moon"
@@ -42,6 +44,8 @@ final class LidModel {
     private(set) var ownsBrightnessOverride = false
     private(set) var changingLimit = false
     private(set) var keepLogoWhenLidClosed = false
+    private(set) var batteryCharge: Double?
+    let updates = AppUpdater()
     private var closedLidFailed = false
     var language: Language = .cantonese {
         didSet { defaults.set(language.rawValue, forKey: "language") }
@@ -71,9 +75,11 @@ final class LidModel {
 
     @ObservationIgnored private let defaults = UserDefaults.standard
     @ObservationIgnored private let audio = AudioMeter()
+    @ObservationIgnored private let awake = ClosedLidAwake()
     private var driver: LogoDriver?
     @ObservationIgnored private let recoveryURL: URL
     @ObservationIgnored private var timer: Timer?
+    @ObservationIgnored private var powerTimer: Timer?
     @ObservationIgnored private var lidHandoff: Task<Void, Never>?
     @ObservationIgnored private var started = 0.0
     @ObservationIgnored private var audioRetry = false
@@ -117,6 +123,11 @@ final class LidModel {
         select(enabled ? previous : .system)
     }
 
+    func setLogoLit(_ lit: Bool) {
+        if lit { setEnabled(true) }
+        else { select(.dark) }
+    }
+
     private var time: Double { ProcessInfo.processInfo.systemUptime }
     private var competingApp: Bool { driver?.hasOtherOverride == true }
     private var suspended: Bool {
@@ -138,9 +149,15 @@ final class LidModel {
             folders[agent] = defaults.string(forKey: agent.rawValue + "Folder").map { URL(fileURLWithPath: $0) } ?? agent.folder
         }
         refresh()
+        awake.onStopped = { [weak self] reason in self?.closedLidSessionEnded(reason) }
     }
 
     func launch(restoreMode: Bool = true) {
+        ClosedLidLogo.recoverAfterExit()
+        refreshPower()
+        powerTimer = Timer.scheduledTimer(withTimeInterval: 15, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.refreshPower() }
+        }
         if competingApp {
             notice = .init("Logo 正由另一個燈控程式控制。請先退出嗰個程式。", "Another app is controlling the logo. Quit it before using LidPulse.")
             return
@@ -160,6 +177,7 @@ final class LidModel {
             guard supported else { notice = .init("呢部 Mac 未偵測到可控制嘅 Logo 燈。", "This Mac has no supported logo light."); return }
             guard !competingApp else { notice = .init("Logo 正由另一個燈控程式控制。請先退出嗰個程式。", "Another app is controlling the logo. Quit it before using LidPulse."); return }
         }
+        if newMode != .system, newMode != .dark, keepLogoWhenLidClosed, !startKeepingAwake() { return }
         audio.stop()
         timer?.invalidate()
         timer = nil
@@ -173,6 +191,7 @@ final class LidModel {
             output = 0
             driver?.releaseClosedLid()
             if !competingApp, driver?.restore() == false { notice = .init("未能還原 Logo 設定。請重新開關 LidPulse 再試。", "Could not restore the logo settings. Toggle LidPulse and try again.") }
+            awake.stop()
             return
         }
         if !suspended && newMode == .music && !startAudio() { return }
@@ -183,6 +202,7 @@ final class LidModel {
         RunLoop.main.add(tickTimer, forMode: .common)
         timer = tickTimer
         tick()
+        if newMode == .dark { awake.stop() }
     }
 
     private func startAudio() -> Bool {
@@ -193,6 +213,7 @@ final class LidModel {
                            "System audio is unavailable\(code). Check Privacy & Security → Screen & System Audio Recording.")
             output = 0
             _ = driver?.restore()
+            awake.stop()
             return false
         }
     }
@@ -209,6 +230,7 @@ final class LidModel {
         case .system: return
         case .steady: level = 1
         case .breathe: level = 0.06 + 0.94 * (1 - cos(2 * .pi * elapsed / breathePeriod)) / 2
+        case .battery: level = batteryCharge ?? 0
         case .music:
             let reading = audio.reading
             if reading.buffers == 0, elapsed > 2, !audioRetry {
@@ -253,6 +275,7 @@ final class LidModel {
             timer?.invalidate(); timer = nil
             audio.stop()
             _ = driver.restore()
+            awake.stop()
             output = 0
             notice = .init("未能寫入 Logo 亮度。請再揀一次模式。", "Could not set the logo brightness. Select the mode again.")
             return
@@ -295,6 +318,11 @@ final class LidModel {
         ownsBrightnessOverride = BrightnessLimit.hasBackup
         fullRange = driver?.hasFullRange ?? false
         for agent in Agent.allCases { installed[agent] = AgentHooks.connected(agent, at: file(for: agent)) }
+    }
+
+    private func refreshPower() {
+        let charge = PowerStatus.read().charge
+        if batteryCharge != charge { batteryCharge = charge }
     }
 
     private func file(for agent: Agent) -> URL {
@@ -395,9 +423,45 @@ final class LidModel {
         let wasSuspended = suspended
         keepLogoWhenLidClosed = enabled
         defaults.set(enabled, forKey: "keepLogoWhenLidClosed")
-        if !enabled { driver?.releaseClosedLid() }
+        if !enabled {
+            driver?.releaseClosedLid()
+            awake.stop()
+        } else if mode == .system || mode == .dark {
+            setEnabled(true)
+        } else if !startKeepingAwake() {
+            return
+        }
         refreshLidState()
         if updateSuspension(wasSuspended: wasSuspended) { tick(force: true) }
+    }
+
+    private func startKeepingAwake() -> Bool {
+        switch awake.start(language: language) {
+        case .ready:
+            return true
+        case .failed:
+            notice = .init("未能暫停系統睡眠，請重新開啟合蓋開關再試。", "Could not pause system sleep. Turn the lid option on again to retry.")
+        }
+        keepLogoWhenLidClosed = false
+        defaults.set(false, forKey: "keepLogoWhenLidClosed")
+        return false
+    }
+
+    private func closedLidSessionEnded(_ reason: ClosedLidPolicy.Stop) {
+        keepLogoWhenLidClosed = false
+        defaults.set(false, forKey: "keepLogoWhenLidClosed")
+        driver?.releaseClosedLid()
+        let message: LocalizedNotice
+        switch reason {
+        case .timeout: message = .init("合蓋亮燈已滿 10 分鐘，已恢復正常睡眠。", "The 10-minute closed-lid session ended. Normal sleep has been restored.")
+        case .battery: message = .init("電量偏低，已停止合蓋亮燈並恢復正常睡眠。", "Battery is low. Closed-lid lighting stopped and normal sleep has been restored.")
+        case .thermal: message = .init("Mac 溫度偏高，已停止合蓋亮燈並恢復正常睡眠。", "Your Mac is too warm. Closed-lid lighting stopped and normal sleep has been restored.")
+        case .unavailable: message = .init("合蓋控制已中斷，已恢復正常睡眠。", "Closed-lid control was interrupted. Normal sleep has been restored.")
+        }
+        notice = message
+        let wasSuspended = suspended
+        refreshLidState()
+        _ = updateSuspension(wasSuspended: wasSuspended)
     }
 
     func suspend(_ source: SuspensionSource, _ sleeping: Bool) {
@@ -462,10 +526,12 @@ final class LidModel {
 
     func terminate() {
         timer?.invalidate()
+        powerTimer?.invalidate()
         lidHandoff?.cancel()
         audio.stop()
         driver?.releaseClosedLid()
         driver?.restoreOpeningFade()
         if !competingApp { _ = driver?.restore() }
+        awake.stop()
     }
 }

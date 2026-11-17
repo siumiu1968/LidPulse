@@ -34,6 +34,7 @@ enum MenuGlyph {
 struct PulsePanel: View {
     @Bindable var model: LidModel
     let openSettings: () -> Void
+    let checkUpdates: () -> Void
 
     private var language: Language { model.language }
     private var active: Bool { model.mode != .system && model.mode != .dark }
@@ -113,6 +114,12 @@ struct PulsePanel: View {
                 Text(language.text("喺設定連接 Claude Code 或 Codex。", "Connect Claude Code or Codex in Settings."))
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
+            if model.mode == .battery {
+                Text(model.batteryCharge.map {
+                    language.text("電量 \(Int(($0 * 100).rounded()))% · 亮度隨電量調整", "Battery \(Int(($0 * 100).rounded()))% · Brightness follows charge")
+                } ?? language.text("未能讀取電池電量", "Battery level unavailable"))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
         }
         .font(.caption)
         .foregroundStyle(.secondary)
@@ -122,14 +129,17 @@ struct PulsePanel: View {
         VStack(alignment: .leading, spacing: 9) {
             actionSwitch(language.text("Logo 燈", "Logo Light"),
                          isOn: Binding(get: { model.mode != .dark },
-                                       set: { model.select($0 ? .system : .dark) }))
+                                       set: model.setLogoLit))
             .disabled(!model.supported || model.changingLimit)
             if model.supportsClosedLid {
                 actionSwitch(language.text("合蓋時保持 Logo 發光", "Keep Logo Lit With Lid Closed"),
                              isOn: Binding(get: { model.keepLogoWhenLidClosed }, set: model.setKeepLogoWhenLidClosed))
-                .help(language.text("Mac 仲醒住時，合蓋後沿用目前模式同亮度。關閉開關後，合蓋會熄燈。",
-                                    "Continues the selected mode and brightness with the lid closed while your Mac is awake. Turn this off to let the logo go dark on closing."))
+                .help(language.text("Mac 合蓋後會保持清醒，沿用目前模式同亮度，最多 10 分鐘。電量低或溫度過高時會停止；請勿放入袋中。",
+                                    "Keeps your Mac awake with the selected mode and brightness for up to 10 minutes. Stops on low battery or high temperature. Do not put it in a bag."))
             }
+            Button(model.updates.availableVersion.map { language.text("更新至 \($0)…", "Update to \($0)…") }
+                   ?? language.text("檢查更新…", "Check for Updates…"), action: checkUpdates)
+                .disabled(!model.updates.canCheck)
             Button(language.text("設定…", "Settings…"), action: openSettings)
                 .keyboardShortcut(",", modifiers: .command)
             Button(language.text("退出 LidPulse", "Quit LidPulse")) { NSApp.terminate(nil) }
@@ -152,7 +162,7 @@ struct PulsePanel: View {
 }
 
 private struct ModePicker: View {
-    static let modes: [LidMode] = [.steady, .breathe, .music, .agents]
+    static let modes: [LidMode] = [.steady, .breathe, .battery, .music, .agents]
     let selected: LidMode
     let available: Bool
     let language: Language
@@ -187,7 +197,7 @@ private struct ModePicker: View {
                 .frame(width: 29, height: 29)
                 .background(.primary.opacity(0.07), in: Circle())
                 .accessibilityHidden(true)
-            Text(mode.title(language)).font(.system(size: 11, weight: .semibold)).lineLimit(1)
+            Text(mode.title(language)).font(.system(size: 10, weight: .semibold)).lineLimit(1)
         }
         .frame(maxWidth: .infinity, minHeight: 65)
         .contentShape(RoundedRectangle(cornerRadius: 15))
