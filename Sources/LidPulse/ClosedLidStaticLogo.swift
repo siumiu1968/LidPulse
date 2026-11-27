@@ -3,7 +3,7 @@ import IOKit
 import ObjectiveC
 import os
 
-/// Uses the lid LED's own controller to hold a steady level while the display sleeps.
+/// Writes only the lid LED's PWM node, independently of the display controller.
 final class ClosedLidStaticLogo {
     private typealias Allocate = @convention(c) (AnyClass, Selector) -> Unmanaged<AnyObject>
     private typealias InitDevice = @convention(c) (AnyObject, Selector, io_service_t) -> Unmanaged<AnyObject>?
@@ -27,6 +27,7 @@ final class ClosedLidStaticLogo {
     private let period: UInt64
     private var lastDuty: UInt64?
     private var lastRequest: Double?
+    private var lastClosedOnly: Bool?
     private static let dutyLimit = UInt64(1) << 32
     private static var marker: URL {
         FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
@@ -102,18 +103,27 @@ final class ClosedLidStaticLogo {
     }
 
     var isClosed: Bool { Self.number(power, "AppleClamshellState")?.boolValue == true }
-    var isDrivingLight: Bool { (lastDuty ?? 0) > 0 }
+    var isDrivingLight: Bool { lastClosedOnly == true && (lastDuty ?? 0) > 0 }
 
     var needsHandoff: Bool {
         lastDuty != 0 && Self.number(led, "enabled")?.boolValue == false
     }
 
     func apply(nits: Double, restrictions: () -> [String: Double]?) -> Bool {
-        guard isClosed else { return true }
+        apply(nits: nits, closedOnly: true, restrictions: restrictions)
+    }
+
+    func applyWhileOpen(nits: Double, restrictions: () -> [String: Double]?) -> Bool {
+        apply(nits: nits, closedOnly: false, restrictions: restrictions)
+    }
+
+    private func apply(nits: Double, closedOnly: Bool, restrictions: () -> [String: Double]?) -> Bool {
+        guard isClosed == closedOnly else { return true }
         guard let enabled = Self.number(led, "enabled")?.boolValue else { return false }
-        if lastRequest == nits, let lastDuty, hardwareMatches(lastDuty, enabled: enabled) { return true }
+        if lastClosedOnly == closedOnly, lastRequest == nits, let lastDuty,
+           hardwareMatches(lastDuty, enabled: enabled) { return true }
         // Take over as soon as macOS releases the LED.
-        if lastDuty == nil, enabled, nits > 0 { return true }
+        if closedOnly, lastClosedOnly != true, enabled, nits > 0 { return true }
 
         var limitedNits = 0.0
         if nits > 0 {
@@ -126,19 +136,26 @@ final class ClosedLidStaticLogo {
                 return false
             }
             limitedNits = min(1000, maxNits, max(minNits, nits)) * multiplier
+            if !closedOnly {
+                guard let factor = restrictions["Factor"], factor.isFinite, (0...1).contains(factor) else { return false }
+                limitedNits *= factor
+            }
         }
         let percentage = convert(calibration, Self.conversionSelector, Float(limitedNits))
         guard percentage.isFinite, (0...100).contains(percentage) else { return false }
-        if lastDuty == nil {
+        if lastClosedOnly != closedOnly {
             Logger(subsystem: "local.lidpulse", category: "static-logo")
-                .info("Static LED requested=\(nits) limited=\(limitedNits) percentage=\(percentage)")
+                .info("LED closed=\(closedOnly) requested=\(nits) limited=\(limitedNits) percentage=\(percentage)")
         }
         let duty = limitedNits > 0 && percentage > 0
             ? min(maximum, UInt64(Float(minimum) + percentage * Float(maximum - minimum) / 100))
             : 0
-        if lastDuty == duty, hardwareMatches(duty, enabled: enabled) { lastRequest = nits; return true }
-        guard isClosed else { return true }
-        if lastDuty == nil {
+        if lastClosedOnly == closedOnly, lastDuty == duty, hardwareMatches(duty, enabled: enabled) {
+            lastRequest = nits
+            return true
+        }
+        guard isClosed == closedOnly else { return true }
+        if closedOnly, lastClosedOnly != true {
             do {
                 try FileManager.default.createDirectory(at: Self.marker.deletingLastPathComponent(), withIntermediateDirectories: true)
                 try Data().write(to: Self.marker, options: .atomic)
@@ -152,7 +169,14 @@ final class ClosedLidStaticLogo {
         }
         lastDuty = duty
         lastRequest = nits
+        lastClosedOnly = closedOnly
         return true
+    }
+
+    @discardableResult
+    func releaseClosedLid() -> Bool {
+        guard lastClosedOnly == true else { return false }
+        return release()
     }
 
     private func hardwareMatches(_ duty: UInt64, enabled: Bool) -> Bool {
@@ -170,6 +194,7 @@ final class ClosedLidStaticLogo {
         if isClosed, lastDuty != 0, !write(0) { return false }
         self.lastDuty = nil
         lastRequest = nil
+        lastClosedOnly = nil
         try? FileManager.default.removeItem(at: Self.marker)
         return true
     }

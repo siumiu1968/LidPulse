@@ -6,6 +6,25 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
     <channel>
         <title>LidPulse</title>
         <item>
+            <title>1.2.1</title>
+            <pubDate>Fri, 27 Nov 2026 23:24:21 +0900</pubDate>
+            <sparkle:version>12</sparkle:version>
+            <sparkle:shortVersionString>1.2.1</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.2</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[# LidPulse 1.2.1
+
+- 修正開啟 Logo 控制後，螢幕亮度可能閃動或突然跳級嘅問題。
+- Logo 燈效更新同螢幕亮度調節分開處理，保留 macOS 原本嘅平滑亮度過渡。
+
+---
+
+- Fixes screen brightness flickering or jumping while logo control is enabled.
+- Keeps logo effect updates separate from display brightness adjustments, preserving macOS brightness transitions.
+]]></description>
+            <enclosure url="https://github.com/siumiu1968/LidPulse/releases/download/v1.2.1/LidPulse-1.2.1.dmg" length="3240582" type="application/octet-stream" sparkle:edSignature="R9XhmtHBW6pwav8Xsrd8OR9LEFcMzpS5Hr6TOLRr1Xsv93AOwxZNJjQaS4Ua3ZKOVxQtgvCqHid3qQLPxksrDA=="/>
+        </item>
+        <item>
             <title>1.2.0</title>
             <pubDate>Tue, 17 Nov 2026 12:25:20 +0900</pubDate>
             <sparkle:version>11</sparkle:version>
@@ -51,36 +70,9 @@ Your Mac stays awake and other apps can continue running. Power consumption and 
 ]]></description>
             <enclosure url="https://github.com/siumiu1968/LidPulse/releases/download/v1.1.1/LidPulse-1.1.1.dmg" length="3222208" type="application/octet-stream" sparkle:edSignature="EiafPmw6r6z7fl1+H24CoAv/OpoTYhKQDHy/gI7Ok0ZwzagUS91f488GHcSFrrre42DKsdJ3Aq6bb0RW+CyyDg=="/>
         </item>
-        <item>
-            <title>1.1.0</title>
-            <pubDate>Tue, 17 Nov 2026 11:19:56 +0900</pubDate>
-            <sparkle:version>8</sparkle:version>
-            <sparkle:shortVersionString>1.1.0</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.2</sparkle:minimumSystemVersion>
-            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <description sparkle:format="markdown"><![CDATA[# LidPulse 1.1.0
-
-- 新增電量模式，Logo 亮度隨電池電量調整。
-- 改善合蓋亮燈，保留所選模式同亮度，毋須管理員授權。
-- 合蓋保持清醒最多 10 分鐘；低電量或系統報告升溫時恢復正常睡眠。
-- 新增檢查更新、自動下載及安裝，並驗證更新簽章。
-
-合蓋亮燈會令 Mac 保持清醒，請勿放入袋中。最高亮度解鎖仍由 macOS 要求管理員授權。
-
----
-
-- Added Battery mode: logo brightness follows battery charge.
-- Improved closed-lid lighting with your selected mode and brightness, without administrator approval.
-- Closed-lid sessions last up to 10 minutes and stop on low battery or elevated thermal pressure.
-- Added signed in-app updates with automatic checking, downloading and installation.
-
-Closed-lid lighting keeps your Mac awake. Do not put it in a bag. Full brightness unlocking still requires macOS administrator approval.
-]]></description>
-            <enclosure url="https://github.com/siumiu1968/LidPulse/releases/download/v1.1.0/LidPulse-1.1.0.dmg" length="3222224" type="application/octet-stream" sparkle:edSignature="uqoK1xIkQ/lF2fLAYkFenY1ZZsbCbyGTj8rmpflV7vKaxMSHWkMTouhJE6CpY1qCiphKn3smcZ9atSpQTM9vCQ=="/>
-        </item>
     </channel>
 </rss>
 <!-- sparkle-signatures:
-edSignature: Yi8tVo7X/O3g62xV8iZ+IjkBb17nT//XVxt3AYYCKUIKeC1Irc2XOYs20U2rhG1zfO90QwkRPznCXt3Yk3nNBw==
-length: 4886
+edSignature: v5NnY5rPxZa5kaofreY5BBz0XTO0SN0R6KGHArTbFoXiXDQXHcI9WReBCuRKo6FHCiXxWCXXZ2Eihi0ngGemCg==
+length: 4359
 -->

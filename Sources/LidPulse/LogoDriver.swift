@@ -14,7 +14,7 @@ final class LogoDriver {
     private var original: [[Double]]?
     private var last: Double?
     private lazy var closedLid = ClosedLidLogo(client: client)
-    private lazy var staticLogo = ClosedLidStaticLogo()
+    private var staticLogo: ClosedLidStaticLogo?
     private var attemptedOpeningFade = false
     private var ownsOpeningFade = false
     private var openingFadeReset: DispatchWorkItem?
@@ -22,13 +22,19 @@ final class LogoDriver {
 
     private typealias Setter = @convention(c) (AnyObject, Selector, AnyObject, NSString) -> Bool
 
-    init?(recovery: URL) {
+    convenience init?(recovery: URL) {
         let node = IORegistryEntryFromPath(kIOMainPortDefault, "IODeviceTree:/arm-io/pwm1/bklb-backlight")
         guard node != 0 else { return nil }
         IOObjectRelease(node)
         guard dlopen("/System/Library/PrivateFrameworks/CoreBrightness.framework/CoreBrightness", RTLD_LAZY | RTLD_LOCAL) != nil,
               let type = NSClassFromString("BrightnessSystemClient") as? NSObject.Type else { return nil }
-        let client = type.init()
+        self.init(client: type.init(), recovery: recovery)
+        guard let pwm = ClosedLidStaticLogo() else { return nil }
+        staticLogo = pwm
+    }
+
+    // Keep the CoreBrightness property boundary testable without opening a hardware controller.
+    init?(client: NSObject, recovery: URL) {
         guard client.responds(to: copy), client.responds(to: set) else { return nil }
         self.client = client
         self.recovery = recovery
@@ -63,7 +69,7 @@ final class LogoDriver {
 
     func releaseClosedLid() {
         let releasedNative = closedLid.release()
-        let releasedStatic = staticLogo?.release() == true
+        let releasedStatic = staticLogo?.releaseClosedLid() == true
         if releasedNative || releasedStatic { last = nil }
         attemptedOpeningFade = false
         guard ownsOpeningFade else { return }
@@ -125,8 +131,24 @@ final class LogoDriver {
     }
 
     private func writeMapping(_ mapping: [[Double]]) -> Bool {
-        write(mapping as NSArray, key: Self.mappingKey) &&
-            write(1 as NSNumber, key: "DisplayPowerStateEvent")
+        // Never broadcast a display-power event to refresh the logo: it also
+        // interrupts the screen's brightness ramps. Drive the LED node directly.
+        write(mapping as NSArray, key: Self.mappingKey)
+    }
+
+    private func readState() -> [String: Double]? {
+        client.perform(copy, with: "LEPWMState")?.takeRetainedValue() as? [String: Double]
+    }
+
+    static func systemLogoNits(mapping: [[Double]], displayNits: Double) -> Double? {
+        guard valid(mapping), displayNits.isFinite, displayNits >= 0,
+              zip(mapping, mapping.dropFirst()).allSatisfy({ $0[0] < $1[0] }) else { return nil }
+        if displayNits <= mapping[0][0] { return mapping[0][1] }
+        for (lower, upper) in zip(mapping, mapping.dropFirst()) where displayNits <= upper[0] {
+            let fraction = (displayNits - lower[0]) / (upper[0] - lower[0])
+            return lower[1] + fraction * (upper[1] - lower[1])
+        }
+        return mapping[mapping.count - 1][1]
     }
 
     private var recoveryExists: Bool { FileManager.default.fileExists(atPath: recovery.path) }
@@ -135,7 +157,9 @@ final class LogoDriver {
         guard nits.isFinite else { return false }
         if !preserveLidOverride { releaseClosedLid() }
         let value = min(1000, max(0, nits))
-        if !force, let last, abs(value - last) < 0.45, value != 0 || last == 0 { return true }
+        if !force, let last, abs(value - last) < 0.45, value != 0 || last == 0 {
+            return staticLogo?.applyWhileOpen(nits: value, restrictions: readState) ?? true
+        }
 
         if original == nil {
             if recoveryExists, !restore() { return false }
@@ -148,6 +172,7 @@ final class LogoDriver {
             } catch { return false }
         }
         guard writeMapping([[0, value], [Self.mappingMax, value]]) else { return false }
+        guard staticLogo?.applyWhileOpen(nits: value, restrictions: readState) ?? true else { return false }
         last = value
         return true
     }
@@ -164,6 +189,14 @@ final class LogoDriver {
               zip(actual, saved).allSatisfy({ pair in
                   zip(pair.0, pair.1).allSatisfy { abs($0.0 - $0.1) <= max(0.001, abs($0.1) * 1e-6) }
               }) else { return false }
+        if let staticLogo, !staticLogo.isClosed {
+            // Return the LED to the saved screen-to-logo curve without changing
+            // display brightness or sending an artificial sleep/wake notification.
+            guard let state = readState(), let displayNits = state["DisplayNits"],
+                  let nits = Self.systemLogoNits(mapping: saved, displayNits: displayNits),
+                  staticLogo.applyWhileOpen(nits: nits, restrictions: { state }) else { return false }
+        }
+        _ = staticLogo?.release()
         last = nil
         original = nil
         if recoveryExists {
